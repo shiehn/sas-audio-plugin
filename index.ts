@@ -1,5 +1,5 @@
 /**
- * @sas/audio-texture — Built-in Audio Texture Generator Plugin
+ * @signalsandsorcery/audio-texture — Built-in Audio Texture Generator Plugin
  *
  * Generates AI audio textures from text prompts using the host's
  * audio generation pipeline (Lyria 3). Manages audio tracks within scenes.
@@ -16,7 +16,7 @@ import type {
 import { AudioTexturePanel } from './AudioTexturePanel';
 
 export class AudioTexturePlugin implements GeneratorPlugin {
-  readonly id = '@sas/audio-texture';
+  readonly id = '@signalsandsorcery/audio-texture';
   readonly displayName = 'Audio';
   readonly version = '1.0.0';
   readonly description = 'AI-generated audio textures using text prompts';

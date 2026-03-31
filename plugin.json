@@ -1,5 +1,5 @@
 {
-  "id": "@sas/audio-texture",
+  "id": "@signalsandsorcery/audio-texture",
   "displayName": "Audio Textures",
   "version": "1.0.0",
   "description": "AI-generated audio textures using text prompts",

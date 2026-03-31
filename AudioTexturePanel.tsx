@@ -1,5 +1,5 @@
 /**
- * AudioTexturePanel — Real UI for the @sas/audio-texture plugin
+ * AudioTexturePanel — Real UI for the @signalsandsorcery/audio-texture plugin
  *
  * Renders the audio track list with description input, FX controls,
  * and AI generation. Uses ONLY PluginHost methods — no EngineContext,
