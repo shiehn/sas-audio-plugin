@@ -1,0 +1,14 @@
+{
+  "id": "@sas/audio-texture",
+  "displayName": "Audio Textures",
+  "version": "1.0.0",
+  "description": "AI-generated audio textures using text prompts",
+  "generatorType": "audio",
+  "main": "index.js",
+  "author": "Signals & Sorcery",
+  "minHostVersion": "1.0.0",
+  "builtIn": true,
+  "capabilities": {
+    "requiresLLM": false
+  }
+}
