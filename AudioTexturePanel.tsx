@@ -8,10 +8,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GiSoundWaves } from 'react-icons/gi';
-import type { PluginUIProps, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState } from '../../../shared/types/plugin-sdk.types';
-import { VolumeSlider, PanSlider, FxToggleBar, SorceryProgressBar } from '../../sdk';
-import type { FxCategory, TrackFxDetailState } from '../../../shared/types/fx-toggle.types';
-import { EMPTY_FX_DETAIL_STATE } from '../../../shared/types/fx-toggle.types';
+import type { PluginUIProps, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState, FxCategory, TrackFxDetailState } from '@signalsandsorcery/plugin-sdk';
+import { VolumeSlider, PanSlider, FxToggleBar, SorceryProgressBar, EMPTY_FX_DETAIL_STATE } from '@signalsandsorcery/plugin-sdk';
 
 // ============================================================================
 // Constants

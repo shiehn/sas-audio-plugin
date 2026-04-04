@@ -12,7 +12,7 @@ import type {
   PluginUIProps,
   PluginSettingsSchema,
   MusicalContext,
-} from '../../../shared/types/plugin-sdk.types';
+} from '@signalsandsorcery/plugin-sdk';
 import { AudioTexturePanel } from './AudioTexturePanel';
 
 export class AudioTexturePlugin implements GeneratorPlugin {
