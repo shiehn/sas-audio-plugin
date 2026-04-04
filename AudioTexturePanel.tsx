@@ -31,6 +31,7 @@ interface AudioTrackState {
   fxDetailState: TrackFxDetailState;
   fxDrawerOpen: boolean;
   isGenerating: boolean;
+  isSplitting: boolean;
 }
 
 // ============================================================================
@@ -51,6 +52,7 @@ export function AudioTexturePanel({
 }: PluginUIProps): React.ReactElement {
   const [tracks, setTracks] = useState<AudioTrackState[]>([]);
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
+  const [stemSplitterAvailable, setStemSplitterAvailable] = useState(false);
   const saveTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
   /** Maps engine track ID → stable DB UUID for plugin_data key construction */
   const engineToDbIdRef = useRef<Map<string, string>>(new Map());
@@ -118,6 +120,7 @@ export function AudioTexturePanel({
           fxDetailState,
           fxDrawerOpen: false,
           isGenerating: false,
+          isSplitting: false,
         });
       }
       setTracks(trackStates);
@@ -162,6 +165,11 @@ export function AudioTexturePanel({
     return unsub;
   }, [host]);
 
+  // ─── Check stem splitter availability on mount ──────────────────
+  useEffect(() => {
+    host.isStemSplitterAvailable().then(setStemSplitterAvailable).catch(() => {});
+  }, [host]);
+
   // ─── Cleanup save timeouts on unmount ────────────────────────────
   useEffect(() => {
     const refs = saveTimeoutRefs;
@@ -197,6 +205,7 @@ export function AudioTexturePanel({
         fxDetailState: { ...EMPTY_FX_DETAIL_STATE },
         fxDrawerOpen: false,
         isGenerating: false,
+        isSplitting: false,
       };
       setTracks(prev => [...prev, newTrack]);
       onExpandSelf?.();
@@ -383,6 +392,47 @@ export function AudioTexturePanel({
     }
   }, [host, tracks]);
 
+  // ─── Split stems ────────────────────────────────────────────────
+  const handleSplitStems = useCallback(async (trackId: string): Promise<void> => {
+    setTracks(prev => prev.map(t =>
+      t.handle.id === trackId ? { ...t, isSplitting: true } : t
+    ));
+
+    try {
+      const result = await host.splitStems(trackId);
+
+      // Build new stem track states
+      const newStemTracks: AudioTrackState[] = result.stems.map(stem => ({
+        handle: stem.track,
+        description: `${stem.stemType} stem`,
+        runtimeState: { id: stem.track.id, muted: true, solo: false, volume: 0.75, pan: 0 },
+        fxDetailState: { ...EMPTY_FX_DETAIL_STATE },
+        fxDrawerOpen: false,
+        isGenerating: false,
+        isSplitting: false,
+      }));
+
+      setTracks(prev => [
+        // Update original track: done splitting, now muted
+        ...prev.map(t =>
+          t.handle.id === trackId
+            ? { ...t, isSplitting: false, runtimeState: { ...t.runtimeState, muted: true } }
+            : t
+        ),
+        // Add stem tracks
+        ...newStemTracks,
+      ]);
+
+      host.showToast('success', 'Stems separated', `Created ${result.stems.length} stem tracks (all muted)`);
+    } catch (error: unknown) {
+      setTracks(prev => prev.map(t =>
+        t.handle.id === trackId ? { ...t, isSplitting: false } : t
+      ));
+      const msg = error instanceof Error ? error.message : 'Stem splitting failed';
+      host.showToast('error', 'Stem split failed', msg);
+    }
+  }, [host]);
+
   // ─── Push header content (+ Add button) to accordion header ─────
   const needsContract = !sceneContext?.hasContract;
   useEffect(() => {
@@ -457,6 +507,7 @@ export function AudioTexturePanel({
             key={track.handle.id}
             track={track}
             isAuthenticated={isAuthenticated}
+            stemSplitterAvailable={stemSplitterAvailable}
             onDescriptionChange={handleDescriptionChange}
             onGenerate={handleGenerate}
             onDelete={handleDeleteTrack}
@@ -468,6 +519,7 @@ export function AudioTexturePanel({
             onFxPresetChange={handleFxPresetChange}
             onFxDryWetChange={handleFxDryWetChange}
             onToggleFxDrawer={toggleFxDrawer}
+            onSplitStems={handleSplitStems}
           />
         ))
       )}
@@ -482,6 +534,7 @@ export function AudioTexturePanel({
 interface AudioTrackRowProps {
   track: AudioTrackState;
   isAuthenticated: boolean;
+  stemSplitterAvailable: boolean;
   onDescriptionChange: (trackId: string, description: string) => void;
   onGenerate: (trackId: string) => void;
   onDelete: (trackId: string) => void;
@@ -493,11 +546,13 @@ interface AudioTrackRowProps {
   onFxPresetChange: (trackId: string, category: FxCategory, presetIndex: number) => void;
   onFxDryWetChange: (trackId: string, category: FxCategory, value: number) => void;
   onToggleFxDrawer: (trackId: string) => void;
+  onSplitStems: (trackId: string) => void;
 }
 
 function AudioTrackRow({
   track,
   isAuthenticated,
+  stemSplitterAvailable,
   onDescriptionChange,
   onGenerate,
   onDelete,
@@ -509,8 +564,9 @@ function AudioTrackRow({
   onFxPresetChange,
   onFxDryWetChange,
   onToggleFxDrawer,
+  onSplitStems,
 }: AudioTrackRowProps): React.ReactElement {
-  const { handle, description, runtimeState, fxDetailState, fxDrawerOpen, isGenerating } = track;
+  const { handle, description, runtimeState, fxDetailState, fxDrawerOpen, isGenerating, isSplitting } = track;
   const isMuted = runtimeState.muted;
   const isSoloed = runtimeState.solo;
   const currentVolume = runtimeState.volume;
@@ -536,6 +592,13 @@ function AudioTrackRow({
         {isGenerating && (
           <div className="absolute inset-0 z-20">
             <SorceryProgressBar isLoading={true} statusText="GENERATING AUDIO..." heightClass="h-full" />
+          </div>
+        )}
+
+        {/* Splitting stems progress overlay */}
+        {isSplitting && (
+          <div className="absolute inset-0 z-20">
+            <SorceryProgressBar isLoading={true} statusText="SPLITTING STEMS..." heightClass="h-full" />
           </div>
         )}
 
@@ -592,6 +655,21 @@ function AudioTrackRow({
             >
               FX
             </button>
+            {stemSplitterAvailable && (
+              <button
+                data-testid="audio-stems-button"
+                onClick={() => onSplitStems(handle.id)}
+                disabled={isGenerating || isSplitting}
+                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-sm transition-colors border flex-shrink-0 ${
+                  isGenerating || isSplitting
+                    ? 'bg-sas-panel border-sas-border text-sas-muted/30 cursor-not-allowed'
+                    : 'bg-sas-panel-alt border-sas-border text-sas-muted/60 hover:border-sas-accent hover:text-sas-accent'
+                }`}
+                title={isSplitting ? 'Splitting...' : 'Split into stems (vocals, drums, bass, other)'}
+              >
+                {isSplitting ? '...' : 'STEMS'}
+              </button>
+            )}
           </div>
         </div>
 
