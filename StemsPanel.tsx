@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GiSoundWaves } from 'react-icons/gi';
 import type { PluginUIProps, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState, FxCategory, TrackFxDetailState, PluginCuePoints, PluginTrimWindow } from '@signalsandsorcery/plugin-sdk';
-import { VolumeSlider, PanSlider, FxToggleBar, SorceryProgressBar, EMPTY_FX_DETAIL_STATE, OffsetScrubber, ImportTrackModal, ConfirmDialog } from '@signalsandsorcery/plugin-sdk';
+import { VolumeSlider, PanSlider, FxToggleBar, SorceryProgressBar, EMPTY_FX_DETAIL_STATE, OffsetScrubber, ImportTrackModal, ConfirmDialog, useAnySolo } from '@signalsandsorcery/plugin-sdk';
 import { TrimEditorDrawer } from './TrimEditorDrawer';
 
 // ============================================================================
@@ -67,6 +67,8 @@ export function StemsPanel({
   onExpandSelf,
 }: PluginUIProps): React.ReactElement {
   const [tracks, setTracks] = useState<AudioTrackState[]>([]);
+  // Cross-panel: dim non-soloed rows when ANY track (any panel) is soloed.
+  const anySolo = useAnySolo(host);
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
   const [stemSplitterAvailable, setStemSplitterAvailable] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -788,6 +790,7 @@ export function StemsPanel({
           <AudioTrackRow
             key={track.handle.id}
             track={track}
+            soloedOut={anySolo && !track.runtimeState.solo}
             isAuthenticated={isAuthenticated}
             stemSplitterAvailable={stemSplitterAvailable}
             onDescriptionChange={handleDescriptionChange}
@@ -839,6 +842,8 @@ interface AudioTrackRowProps {
   onCommitTrim: (trackId: string, window: PluginTrimWindow) => Promise<void>;
   fetchRawAudioBytes: (filePath: string) => Promise<ArrayBuffer>;
   projectBpm: number;
+  /** True when another track is soloed → this row is silenced; render it dimmed. */
+  soloedOut?: boolean;
 }
 
 function AudioTrackRow({
@@ -862,6 +867,7 @@ function AudioTrackRow({
   onCommitTrim,
   fetchRawAudioBytes,
   projectBpm,
+  soloedOut = false,
 }: AudioTrackRowProps): React.ReactElement {
   const {
     handle, description, runtimeState, fxDetailState, fxDrawerOpen, isGenerating,
@@ -914,8 +920,12 @@ function AudioTrackRow({
           </div>
         </div>
 
-        {/* Description input with volume + FX underneath */}
-        <div className="flex flex-col flex-1 min-w-0 relative z-10">
+        {/* Description input with volume + FX underneath.
+            Dimmed when soloed-out (silenced by another track's solo). */}
+        <div
+          className={`flex flex-col flex-1 min-w-0 relative z-10 transition-opacity ${soloedOut ? 'opacity-40' : ''}`}
+          title={soloedOut ? 'Silenced — another track is soloed' : undefined}
+        >
           <input
             type="text"
             data-testid="audio-description-input"
