@@ -8,8 +8,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GiSoundWaves } from 'react-icons/gi';
-import type { PluginUIProps, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState, FxCategory, TrackFxDetailState, PluginCuePoints, PluginTrimWindow } from '@signalsandsorcery/plugin-sdk';
-import { VolumeSlider, PanSlider, FxToggleBar, SorceryProgressBar, EMPTY_FX_DETAIL_STATE, OffsetScrubber, ImportTrackModal, ConfirmDialog, useAnySolo } from '@signalsandsorcery/plugin-sdk';
+import type { PluginUIProps, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState, FxCategory, TrackFxDetailState, PluginCuePoints, PluginTrimWindow, TrackLevelsHandle } from '@signalsandsorcery/plugin-sdk';
+import { VolumeSlider, PanSlider, FxToggleBar, SorceryProgressBar, EMPTY_FX_DETAIL_STATE, OffsetScrubber, ImportTrackModal, ConfirmDialog, useAnySolo, TrackMeterStrip, useTrackLevels } from '@signalsandsorcery/plugin-sdk';
 import { TrimEditorDrawer } from './TrimEditorDrawer';
 
 // ============================================================================
@@ -66,6 +66,14 @@ export function StemsPanel({
   onOpenContract,
   onExpandSelf,
 }: PluginUIProps): React.ReactElement {
+  // Cosmetic per-track peak meters. Poll while the panel is mounted + visible;
+  // NOT gated on transport state (this app plays via decks/clip-launcher, so the
+  // linear "is playing" flag is unreliable). Stopped tracks just read the floor.
+  // The host coalesces the read so playback always wins over the GUI. Older
+  // hosts (no getTrackLevels) degrade to no meter via the `supportsMeters` guard.
+  const supportsMeters = typeof host.getTrackLevels === 'function';
+  const trackLevels = useTrackLevels(host);
+
   const [tracks, setTracks] = useState<AudioTrackState[]>([]);
   // Cross-panel: dim non-soloed rows when ANY track (any panel) is soloed.
   const anySolo = useAnySolo(host);
@@ -790,6 +798,7 @@ export function StemsPanel({
           <AudioTrackRow
             key={track.handle.id}
             track={track}
+            levels={supportsMeters ? trackLevels : undefined}
             soloedOut={anySolo && !track.runtimeState.solo}
             isAuthenticated={isAuthenticated}
             stemSplitterAvailable={stemSplitterAvailable}
@@ -844,6 +853,9 @@ interface AudioTrackRowProps {
   projectBpm: number;
   /** True when another track is soloed → this row is silenced; render it dimmed. */
   soloedOut?: boolean;
+  /** Shared meter handle from `useTrackLevels`. When present, a thin peak meter
+   *  welds to the bottom of the row. Omit to hide it (older hosts). */
+  levels?: TrackLevelsHandle;
 }
 
 function AudioTrackRow({
@@ -868,6 +880,7 @@ function AudioTrackRow({
   fetchRawAudioBytes,
   projectBpm,
   soloedOut = false,
+  levels,
 }: AudioTrackRowProps): React.ReactElement {
   const {
     handle, description, runtimeState, fxDetailState, fxDrawerOpen, isGenerating,
@@ -896,7 +909,7 @@ function AudioTrackRow({
     <div data-testid="audio-track-input-wrapper" className="w-full">
       <div
         data-testid="audio-track-input"
-        className="relative flex items-stretch gap-1 p-2 rounded-sm border w-full overflow-hidden border-sas-border bg-sas-panel-alt"
+        className={`relative flex items-stretch gap-1 p-2 ${levels ? 'rounded-t-sm' : 'rounded-sm'} border w-full overflow-hidden border-sas-border bg-sas-panel-alt`}
         style={{ borderLeftColor: '#6AF2C5', borderLeftWidth: '3px' }}
       >
         {/* Generating progress overlay */}
@@ -1070,6 +1083,16 @@ function AudioTrackRow({
           x
         </button>
       </div>
+
+      {/* Thin per-track peak meter, welded to the bottom of the row (cosmetic).
+          Squared bottom when a drawer (offset / FX / trim) welds on below it. */}
+      {levels && (
+        <TrackMeterStrip
+          levels={levels}
+          trackId={handle.id}
+          roundBottom={!(cuePoints || fxDrawerOpen || (trimDrawerOpen && rawFilePath))}
+        />
+      )}
 
       {/* Offset scrubber — only rendered when cue points are present.
           Hides for blank tracks (pre-generation) and stem tracks until
