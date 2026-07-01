@@ -66,6 +66,14 @@ jest.mock('@signalsandsorcery/plugin-sdk', () => ({
         </button>
       </div>
     ) : null,
+  // Meter + misc SDK symbols the panel imports/renders. The meter poll is
+  // disabled in tests (the mock host has no getTrackLevels → supportsMeters is
+  // false), so these can be inert stubs — they just need to exist as callables.
+  useTrackLevels: () => null,
+  useAnySolo: () => false,
+  TrackMeterStrip: () => null,
+  OffsetScrubber: () => null,
+  ImportTrackModal: () => null,
 }));
 
 jest.mock('react-icons/gi', () => ({
