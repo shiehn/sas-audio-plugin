@@ -8,8 +8,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GiSoundWaves } from 'react-icons/gi';
-import type { PluginUIProps, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState, FxCategory, TrackFxDetailState, PluginCuePoints, PluginTrimWindow, TrackLevelsHandle } from '@signalsandsorcery/plugin-sdk';
-import { VolumeSlider, PanSlider, FxToggleBar, SorceryProgressBar, EMPTY_FX_DETAIL_STATE, OffsetScrubber, ImportTrackModal, ConfirmDialog, useAnySolo, TrackMeterStrip, useTrackLevels } from '@signalsandsorcery/plugin-sdk';
+import type { PluginUIProps, PluginHost, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState, FxCategory, TrackFxDetailState, PluginCuePoints, PluginTrimWindow, TrackLevelsHandle } from '@signalsandsorcery/plugin-sdk';
+import { VolumeSlider, PanSlider, FxToggleBar, TrackExternalFxSection, SorceryProgressBar, EMPTY_FX_DETAIL_STATE, OffsetScrubber, ImportTrackModal, ConfirmDialog, useAnySolo, TrackMeterStrip, useTrackLevels } from '@signalsandsorcery/plugin-sdk';
 import { TrimEditorDrawer } from './TrimEditorDrawer';
 
 // ============================================================================
@@ -801,6 +801,7 @@ export function StemsPanel({
           <AudioTrackRow
             key={track.handle.id}
             track={track}
+            host={host}
             levels={supportsMeters ? trackLevels : undefined}
             soloedOut={anySolo && !track.runtimeState.solo}
             isAuthenticated={isAuthenticated}
@@ -835,6 +836,8 @@ export function StemsPanel({
 
 interface AudioTrackRowProps {
   track: AudioTrackState;
+  /** Panel host — drives the drawer's third-party FX section (SDK 2.39.0). */
+  host: PluginHost;
   isAuthenticated: boolean;
   stemSplitterAvailable: boolean;
   onDescriptionChange: (trackId: string, description: string) => void;
@@ -863,6 +866,7 @@ interface AudioTrackRowProps {
 
 function AudioTrackRow({
   track,
+  host,
   isAuthenticated,
   stemSplitterAvailable,
   onDescriptionChange,
@@ -1126,6 +1130,7 @@ function AudioTrackRow({
             onDryWetChange={onFxDryWetChange}
             disabled={isGenerating}
           />
+          <TrackExternalFxSection host={host} trackId={handle.id} disabled={isGenerating} />
         </div>
       )}
 

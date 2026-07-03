@@ -26,6 +26,9 @@ jest.mock('@signalsandsorcery/plugin-sdk', () => ({
     <input data-testid="pan-slider" type="range" value={value} onChange={(e) => onChange(Number(e.target.value))} />
   ),
   FxToggleBar: () => <div data-testid="fx-toggle-bar" />,
+  // Third-party FX section (SDK 2.39.0) — inert stub; its behavior is covered
+  // by the SDK-source tests in sas-app (TrackExternalFxSection.test.tsx).
+  TrackExternalFxSection: () => <div data-testid="track-external-fx-section" />,
   SorceryProgressBar: ({ statusText }: { isLoading: boolean; statusText: string; heightClass: string }) => (
     <div data-testid="progress-bar">{statusText}</div>
   ),
