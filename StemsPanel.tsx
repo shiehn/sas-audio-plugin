@@ -8,8 +8,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GiSoundWaves } from 'react-icons/gi';
-import type { PluginUIProps, PluginHost, PluginTrackHandle, PluginTrackRuntimeState, PluginTrackFxDetailState, PluginFxCategoryDetailState, FxCategory, TrackFxDetailState, PluginCuePoints, PluginTrimWindow, TrackLevelsHandle } from '@signalsandsorcery/plugin-sdk';
-import { VolumeSlider, PanSlider, FxToggleBar, TrackExternalFxSection, SorceryProgressBar, EMPTY_FX_DETAIL_STATE, OffsetScrubber, ImportTrackModal, ConfirmDialog, useAnySolo, TrackMeterStrip, useTrackLevels } from '@signalsandsorcery/plugin-sdk';
+import type { PluginUIProps, PluginHost, PluginTrackHandle, PluginTrackRuntimeState, PluginCuePoints, PluginTrimWindow, TrackLevelsHandle } from '@signalsandsorcery/plugin-sdk';
+import { VolumeSlider, PanSlider, TrackExternalFxSection, SorceryProgressBar, OffsetScrubber, ImportTrackModal, ConfirmDialog, useAnySolo, TrackMeterStrip, useTrackLevels } from '@signalsandsorcery/plugin-sdk';
 import { TrimEditorDrawer } from './TrimEditorDrawer';
 
 // ============================================================================
@@ -27,7 +27,6 @@ interface AudioTrackState {
   handle: PluginTrackHandle;
   description: string;
   runtimeState: PluginTrackRuntimeState;
-  fxDetailState: TrackFxDetailState;
   fxDrawerOpen: boolean;
   isGenerating: boolean;
   isSplitting: boolean;
@@ -160,15 +159,6 @@ export function StemsPanel({
           // Use defaults
         }
 
-        // Get FX state
-        let fxDetailState: TrackFxDetailState = { ...EMPTY_FX_DETAIL_STATE };
-        try {
-          const fxState = await host.getTrackFxState(handle.id);
-          fxDetailState = pluginFxToToggleFx(fxState);
-        } catch {
-          // Use defaults
-        }
-
         // Use stable DB UUID for plugin_data keys (engine IDs change on project reload)
         const descKey = `track:${handle.dbId}:description`;
         const description = typeof descriptions[descKey] === 'string'
@@ -205,7 +195,6 @@ export function StemsPanel({
           handle,
           description,
           runtimeState,
-          fxDetailState,
           fxDrawerOpen: false,
           isGenerating: false,
           isSplitting: false,
@@ -322,7 +311,6 @@ export function StemsPanel({
         handle,
         description: '',
         runtimeState: { id: handle.id, muted: false, solo: false, volume: 0.75, pan: 0 },
-        fxDetailState: { ...EMPTY_FX_DETAIL_STATE },
         fxDrawerOpen: false,
         isGenerating: false,
         isSplitting: false,
@@ -541,62 +529,11 @@ export function StemsPanel({
     });
   }, [host]);
 
-  // ─── FX Operations (optimistic UI) ──────────────────────────────
-  const handleFxToggle = useCallback((_trackId: string, category: FxCategory, enabled: boolean): void => {
-    setTracks(prev => prev.map(t =>
-      t.handle.id === _trackId
-        ? { ...t, fxDetailState: { ...t.fxDetailState, [category]: { ...t.fxDetailState[category], enabled } } }
-        : t
-    ));
-    host.toggleTrackFx(_trackId, category, enabled).catch(() => {
-      setTracks(prev => prev.map(t =>
-        t.handle.id === _trackId
-          ? { ...t, fxDetailState: { ...t.fxDetailState, [category]: { ...t.fxDetailState[category], enabled: !enabled } } }
-          : t
-      ));
-    });
-  }, [host]);
-
-  const handleFxPresetChange = useCallback((_trackId: string, category: FxCategory, presetIndex: number): void => {
-    setTracks(prev => prev.map(t =>
-      t.handle.id === _trackId
-        ? { ...t, fxDetailState: { ...t.fxDetailState, [category]: { ...t.fxDetailState[category], presetIndex } } }
-        : t
-    ));
-    host.setTrackFxPreset(_trackId, category, presetIndex).then(result => {
-      if (result.dryWet !== undefined) {
-        setTracks(prev => prev.map(t =>
-          t.handle.id === _trackId
-            ? { ...t, fxDetailState: { ...t.fxDetailState, [category]: { ...t.fxDetailState[category], dryWet: result.dryWet as number } } }
-            : t
-        ));
-      }
-    }).catch(() => {});
-  }, [host]);
-
-  const handleFxDryWetChange = useCallback((_trackId: string, category: FxCategory, value: number): void => {
-    setTracks(prev => prev.map(t =>
-      t.handle.id === _trackId
-        ? { ...t, fxDetailState: { ...t.fxDetailState, [category]: { ...t.fxDetailState[category], dryWet: value } } }
-        : t
-    ));
-    host.setTrackFxDryWet(_trackId, category, value).catch(() => {});
-  }, [host]);
-
   const toggleFxDrawer = useCallback((trackId: string): void => {
     setTracks(prev => prev.map(t =>
       t.handle.id === trackId ? { ...t, fxDrawerOpen: !t.fxDrawerOpen } : t
     ));
-    // Refresh FX state when opening drawer
-    const track = tracks.find(t => t.handle.id === trackId);
-    if (track && !track.fxDrawerOpen) {
-      host.getTrackFxState(trackId).then(fxState => {
-        setTracks(prev => prev.map(t =>
-          t.handle.id === trackId ? { ...t, fxDetailState: pluginFxToToggleFx(fxState) } : t
-        ));
-      }).catch(() => {});
-    }
-  }, [host, tracks]);
+  }, []);
 
   const toggleTrimDrawer = useCallback((trackId: string): void => {
     setTracks(prev => prev.map(t =>
@@ -656,7 +593,6 @@ export function StemsPanel({
         handle: stem.track,
         description: `${stem.stemType} stem`,
         runtimeState: { id: stem.track.id, muted: true, solo: false, volume: 0.75, pan: 0 },
-        fxDetailState: { ...EMPTY_FX_DETAIL_STATE },
         fxDrawerOpen: false,
         isGenerating: false,
         isSplitting: false,
@@ -813,9 +749,6 @@ export function StemsPanel({
             onSoloToggle={handleSoloToggle}
             onVolumeChange={handleVolumeChange}
             onPanChange={handlePanChange}
-            onFxToggle={handleFxToggle}
-            onFxPresetChange={handleFxPresetChange}
-            onFxDryWetChange={handleFxDryWetChange}
             onToggleFxDrawer={toggleFxDrawer}
             onSplitStems={handleSplitStems}
             onOffsetChange={handleOffsetChange}
@@ -847,9 +780,6 @@ interface AudioTrackRowProps {
   onSoloToggle: (trackId: string) => void;
   onVolumeChange: (trackId: string, volume: number) => void;
   onPanChange: (trackId: string, pan: number) => void;
-  onFxToggle: (trackId: string, category: FxCategory, enabled: boolean) => void;
-  onFxPresetChange: (trackId: string, category: FxCategory, presetIndex: number) => void;
-  onFxDryWetChange: (trackId: string, category: FxCategory, value: number) => void;
   onToggleFxDrawer: (trackId: string) => void;
   onSplitStems: (trackId: string) => void;
   onOffsetChange: (trackId: string, offsetSamples: number) => void;
@@ -876,9 +806,6 @@ function AudioTrackRow({
   onSoloToggle,
   onVolumeChange,
   onPanChange,
-  onFxToggle,
-  onFxPresetChange,
-  onFxDryWetChange,
   onToggleFxDrawer,
   onSplitStems,
   onOffsetChange,
@@ -890,16 +817,13 @@ function AudioTrackRow({
   levels,
 }: AudioTrackRowProps): React.ReactElement {
   const {
-    handle, description, runtimeState, fxDetailState, fxDrawerOpen, isGenerating,
+    handle, description, runtimeState, fxDrawerOpen, isGenerating,
     isSplitting, cuePoints, offsetSamples, rawFilePath, rawCuePoints, trimWindow,
     trimDrawerOpen,
   } = track;
   const isMuted = runtimeState.muted;
   const isSoloed = runtimeState.solo;
   const currentVolume = runtimeState.volume;
-  const hasFxActive = Object.values(fxDetailState).some(
-    (d: { enabled: boolean }) => d.enabled
-  );
 
   // Guard the (irreversible) delete behind a confirmation modal — the bare "x"
   // was one stray click away from losing an audio track.
@@ -982,9 +906,7 @@ function AudioTrackRow({
                   ? 'bg-sas-panel border-sas-border text-sas-muted/30 cursor-not-allowed'
                   : fxDrawerOpen
                     ? 'bg-sas-accent border-sas-accent text-sas-bg'
-                    : hasFxActive
-                      ? 'bg-sas-accent/20 border-sas-accent text-sas-accent hover:bg-sas-accent hover:text-sas-bg'
-                      : 'bg-sas-panel-alt border-sas-border text-sas-muted/60 hover:border-sas-accent hover:text-sas-accent'
+                    : 'bg-sas-panel-alt border-sas-border text-sas-muted/60 hover:border-sas-accent hover:text-sas-accent'
               }`}
               title={fxDrawerOpen ? 'Hide FX controls' : 'Show FX controls'}
             >
@@ -1122,14 +1044,6 @@ function AudioTrackRow({
       {/* FX Drawer */}
       {fxDrawerOpen && (
         <div data-testid="fx-drawer" className="border border-t-0 border-sas-border bg-sas-bg rounded-b-sm px-3 py-2 max-h-[180px] overflow-y-auto">
-          <FxToggleBar
-            trackId={handle.id}
-            fxState={fxDetailState}
-            onToggle={onFxToggle}
-            onPresetChange={onFxPresetChange}
-            onDryWetChange={onFxDryWetChange}
-            disabled={isGenerating}
-          />
           <TrackExternalFxSection host={host} trackId={handle.id} disabled={isGenerating} />
         </div>
       )}
@@ -1169,26 +1083,6 @@ function AudioTrackRow({
       />
     </div>
   );
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Convert SDK PluginTrackFxDetailState to the FxToggleBar's expected TrackFxDetailState */
-function pluginFxToToggleFx(sdkState: PluginTrackFxDetailState): TrackFxDetailState {
-  const result = { ...EMPTY_FX_DETAIL_STATE };
-  for (const category of ['eq', 'compressor', 'chorus', 'phaser', 'delay', 'reverb'] as const) {
-    const sdkCat = sdkState[category] as PluginFxCategoryDetailState | undefined;
-    if (sdkCat) {
-      result[category] = {
-        enabled: sdkCat.enabled,
-        presetIndex: sdkCat.presetIndex,
-        dryWet: sdkCat.dryWet,
-      };
-    }
-  }
-  return result;
 }
 
 export default StemsPanel;

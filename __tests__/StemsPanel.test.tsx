@@ -25,21 +25,12 @@ jest.mock('@signalsandsorcery/plugin-sdk', () => ({
   PanSlider: ({ value, onChange }: { value: number; onChange: (v: number) => void }) => (
     <input data-testid="pan-slider" type="range" value={value} onChange={(e) => onChange(Number(e.target.value))} />
   ),
-  FxToggleBar: () => <div data-testid="fx-toggle-bar" />,
   // Third-party FX section (SDK 2.39.0) — inert stub; its behavior is covered
   // by the SDK-source tests in sas-app (TrackExternalFxSection.test.tsx).
   TrackExternalFxSection: () => <div data-testid="track-external-fx-section" />,
   SorceryProgressBar: ({ statusText }: { isLoading: boolean; statusText: string; heightClass: string }) => (
     <div data-testid="progress-bar">{statusText}</div>
   ),
-  EMPTY_FX_DETAIL_STATE: {
-    eq: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-    compressor: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-    chorus: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-    phaser: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-    delay: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-    reverb: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-  },
   // ConfirmDialog guards track deletion; honor `open` so closed dialogs render
   // nothing (existing tests never open it) and expose the testids the new
   // delete-confirmation tests below drive.
@@ -116,18 +107,6 @@ function makeMockHost(overrides?: Record<string, any>): PluginHost {
     setTrackName: fn().mockResolvedValue(undefined),
     shufflePreset: fn().mockResolvedValue({}),
     duplicateTrack: fn().mockResolvedValue(makeHandle('dup', 'dup')),
-
-    getTrackFxState: fn().mockResolvedValue({
-      eq: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-      compressor: { enabled: false, presetIndex: 0, dryWet: 1.0 },
-      chorus: { enabled: false, presetIndex: 0, dryWet: 0.5 },
-      phaser: { enabled: false, presetIndex: 0, dryWet: 0.5 },
-      delay: { enabled: false, presetIndex: 0, dryWet: 0.3 },
-      reverb: { enabled: false, presetIndex: 0, dryWet: 0.3 },
-    }),
-    toggleTrackFx: fn().mockResolvedValue(undefined),
-    setTrackFxPreset: fn().mockResolvedValue({}),
-    setTrackFxDryWet: fn().mockResolvedValue(undefined),
 
     onTrackStateChange: fn().mockReturnValue(() => {}),
     onTransportEvent: fn().mockReturnValue(() => {}),
